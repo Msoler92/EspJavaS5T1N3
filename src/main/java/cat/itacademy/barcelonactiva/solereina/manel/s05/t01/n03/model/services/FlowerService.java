@@ -10,33 +10,39 @@ import org.springframework.web.reactive.function.client.WebClient.RequestHeaders
 import org.springframework.web.reactive.function.client.WebClient.ResponseSpec;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 public class FlowerService {
 
-    private WebClient client = WebClient.create("http://localhost:9001");
+    private final WebClient client = WebClient.create("http://localhost:9001");
 
-    public FlowerDTO save(FlowerDTO dto) {
-        ResponseEntity<FlowerDTO> response = client.post()
+    public Mono<FlowerDTO> save(FlowerDTO dto) {
+        return client.post()
                 .uri("/flower/add")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(dto, FlowerDTO.class)
+                .body(Mono.just(dto), FlowerDTO.class)
                 .retrieve()
-                .toEntity(FlowerDTO.class)
-                .block();
-        return response.getBody();
+                .bodyToMono(FlowerDTO.class);
     }
 
-    public FlowerDTO update(FlowerDTO dto) {
-        return null;
+    public Mono<FlowerDTO> update(FlowerDTO dto) {
+        return client.put()
+                .uri("/flower/update")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Mono.just(dto), FlowerDTO.class)
+                .retrieve()
+                .bodyToMono(FlowerDTO.class);
     }
 
-    public FlowerDTO findById(Integer id) {
+    public Mono<FlowerDTO> findById(Integer id) {
+        /*
         ResponseEntity<FlowerDTO> response = client.get()
                 .uri("/flower/getOne/{id}", id)
                 .accept(MediaType.APPLICATION_JSON)
@@ -47,14 +53,29 @@ public class FlowerService {
         if (response.getStatusCode() == HttpStatus.NOT_FOUND) {
             throw new NotFoundException("Id not found");
         }
-        return response.getBody();
+
+         */
+        return client.get()
+                .uri("/flower/getOne/{id}", id)
+                .retrieve()
+                .bodyToMono(FlowerDTO.class)
+                .doOnError((throwable) -> {
+                    throw new NotFoundException();
+                });
     }
 
-    public List<FlowerDTO> findAll() {
-        return null;
+    public Flux<FlowerDTO> findAll() {
+        return client
+                .get().uri("/flower/getAll")
+                .retrieve()
+                .bodyToFlux(FlowerDTO.class);
     }
 
     public void deleteById(Integer id) {
-
+        client.delete()
+                .uri("/flower/delete/{id}", id)
+                .retrieve()
+                .onStatus(status -> status == HttpStatus.NOT_FOUND, clientResponse -> Mono.empty())
+                .bodyToMono(FlowerDTO.class).block();
     }
 }
